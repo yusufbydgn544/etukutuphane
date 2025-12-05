@@ -56,11 +56,11 @@ app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
 
   // Simple auth for demo (In production, use bcrypt)
-  const sql = `SELECT * FROM users WHERE email = ? AND password = ?`;
+  const sql = `SELECT * FROM users WHERE (email = ? OR id = ?) AND password = ?`;
 
-  db.get(sql, [email, password], (err, user) => {
+  db.get(sql, [email, email, password], (err, user) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (!user) return res.status(401).json({ error: "E-posta veya şifre hatalı." });
+    if (!user) return res.status(401).json({ error: "Giriş bilgileri hatalı." });
 
     // Convert logic names to frontend expectations
     // In DB we use snake_case, frontend uses camelCase
@@ -267,19 +267,38 @@ app.post('/api/reservations', (req, res) => {
       db.all(checkSql, [date], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
 
+        // Set of students who are already busy or in a group today
         const busyStudents = new Set();
+
         rows.forEach(row => {
+          // Add main user
           if (row.user_student_number) busyStudents.add(row.user_student_number);
+
+          // Add group members
           if (row.group_members) {
             const members = JSON.parse(row.group_members);
-            members.forEach(m => busyStudents.add(m));
+            members.forEach(m => m && busyStudents.add(m));
           }
         });
 
         for (const p of participants) {
           if (busyStudents.has(p)) {
             if (p === user.studentNumber) {
-              return res.status(400).json({ error: "RESERVATION_LIMIT_EXCEEDED" });
+              // User has a reservation already. Check library density.
+              return getRoomStatusLogic(date, startTime, endTime).then(occupiedRoomIds => {
+                // Standard rooms are 1 to 20
+                const occupiedStandardCount = occupiedRoomIds.filter(id => id <= 20).length;
+                const totalStandardRooms = 20;
+                const freeStandardCount = totalStandardRooms - occupiedStandardCount;
+
+                if (freeStandardCount >= 5) {
+                  // Allow request modal
+                  return res.status(400).json({ error: "RESERVATION_LIMIT_EXCEEDED" });
+                } else {
+                  // Block request due to density
+                  return res.status(400).json({ error: "Kütüphane yoğunluğu sebebiyle bu saat dilimi için ekstra rezervasyon talebi oluşturulamaz. (En az 5 boş oda gereklidir)" });
+                }
+              }).catch(err => res.status(500).json({ error: "Yoğunluk kontrolü sırasında hata oluştu." }));
             } else {
               return res.status(400).json({ error: `Öğrenci numarası ${p} olan kişinin bugün başka bir rezervasyonu var.` });
             }
@@ -413,6 +432,57 @@ app.delete('/api/suggestions/:id', (req, res) => {
 app.use((req, res) => {
   const indexPath = path.join(__dirname, 'dist', 'index.html');
   res.sendFile(indexPath);
+});
+
+app.get('/api/analytics', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    // 1. Total Reservations
+    const totalRow = await new Promise((resolve, reject) => {
+      db.get(`SELECT COUNT(*) as count FROM reservations`, (err, row) => err ? reject(err) : resolve(row));
+    });
+
+    // 2. Occupancy Rate (Active reservations today vs Capacity)
+    // Assuming 20 rooms * 8 slots = 160 capacity/day
+    const activeTodayRow = await new Promise((resolve, reject) => {
+      db.get(`SELECT COUNT(*) as count FROM reservations WHERE date = ? AND status = 'ACTIVE'`, [today], (err, row) => err ? reject(err) : resolve(row));
+    });
+    const occupancyRate = Math.round((activeTodayRow.count / 160) * 100);
+
+    // 3. Most Popular Room
+    const popRoomRow = await new Promise((resolve, reject) => {
+      db.get(`SELECT room_id, COUNT(*) as count FROM reservations GROUP BY room_id ORDER BY count DESC LIMIT 1`, (err, row) => err ? reject(err) : resolve(row));
+    });
+    const popularRoom = popRoomRow ? `Çalışma Odası ${popRoomRow.room_id}` : 'Veri Yok';
+
+    // 4. Daily Data (Last 7 Days)
+    const days = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+    const dailyData = [];
+
+    // Serial execution is fine for 7 items
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayName = days[d.getDay()];
+
+      const countRow = await new Promise((resolve, reject) => {
+        db.get(`SELECT COUNT(*) as count FROM reservations WHERE date = ?`, [dateStr], (err, row) => err ? reject(err) : resolve(row));
+      });
+      dailyData.push({ name: dayName, value: countRow.count });
+    }
+
+    res.json({
+      totalReservations: totalRow.count,
+      occupancyRate: occupancyRate,
+      mostPopularRoom: popularRoom,
+      dailyData: dailyData
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Start Server

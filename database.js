@@ -111,7 +111,17 @@ db.serialize(() => {
     if (!row) {
       db.run(`INSERT INTO users (id, name, email, password, role, avatar_color) VALUES (?, ?, ?, ?, ?, ?)`,
         [adminId, 'Admin User', adminEmail, 'admin123', 'ADMIN', '#EF4444']);
-      console.log('Admin user seeded.');
+      console.log('Default Admin user seeded.');
+    }
+  });
+
+  // Seed Specified Admin User (User Request)
+  const specifiedAdminId = 'etüyönetici';
+  db.get(`SELECT id FROM users WHERE id = ?`, [specifiedAdminId], (err, row) => {
+    if (!row) {
+      db.run(`INSERT INTO users (id, name, email, password, role, avatar_color) VALUES (?, ?, ?, ?, ?, ?)`,
+        [specifiedAdminId, 'ETÜ Yönetici', 'yonetici@erzurum.edu.tr', 'yönetici123', 'ADMIN', '#EF4444']);
+      console.log('Specified Admin user (etüyönetici) seeded.');
     }
   });
 
