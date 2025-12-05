@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Cloud Kurulum Rehberi</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            border-bottom: 2px solid #eaeaea;
+            padding-bottom: 10px;
+            color: #1a73e8;
+        }
+
+        h2 {
+            margin-top: 30px;
+            color: #202124;
+            border-bottom: 1px solid #eaeaea;
+            padding-bottom: 5px;
+        }
+
+        code {
+            background-color: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.9em;
+            color: #d93025;
+        }
+
+        pre {
+            background-color: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #dadce0;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .note {
+            background-color: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        @media print {
+            body {
+                max-width: 100%;
+                padding: 0;
+            }
+
+            pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+
+            a {
+                text-decoration: none;
+                color: #000;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Google Cloud Compute Engine Kurulum Rehberi</h1>
+
+    <p>Bu rehber, projenizi Google Cloud üzerinde bir sanal sunucuya (VM Instance) kurarak nasıl yayınlayacağınızı adım
+        adım anlatır.</p>
+
+    <h2>1. Google Cloud Hesabı ve Sunucu Oluşturma</h2>
+    <ol>
+        <li><a href="https://console.cloud.google.com/">Google Cloud Console</a> adresine gidin.</li>
+        <li>Sol menüden <strong>Compute Engine</strong> > <strong>VM Instances</strong> seçeneğine tıklayın.</li>
+        <li><strong>"Create Instance"</strong> butonuna basın.</li>
+        <li><strong>Ayarlar:</strong>
+            <ul>
+                <li><strong>Name:</strong> <code>etukutuphane</code> (veya istediğiniz bir isim).</li>
+                <li><strong>Region:</strong> <code>europe-west3</code> (Frankfurt) veya size yakın bir yer seçin.</li>
+                <li><strong>Machine Type:</strong> <code>e2-micro</code> (Deneme için yeterli ve en ucuzu).</li>
+                <li><strong>Boot Disk:</strong> "Change" diyip <strong>Ubuntu 22.04 LTS</strong> seçin.</li>
+                <li><strong>Firewall:</strong> "Allow HTTP traffic" ve "Allow HTTPS traffic" kutucuklarını
+                    <strong>işaretleyin</strong>.</li>
+            </ul>
+        </li>
+        <li><strong>Create</strong> diyerek sunucuyu oluşturun.</li>
+    </ol>
+
+    <h2>2. Sunucuya Bağlanma</h2>
+    <ol>
+        <li>Oluşturduğunuz sunucunun yanındaki <strong>SSH</strong> butonuna tıklayın.</li>
+        <li>Siyah bir terminal penceresi açılacaktır. Artık sunucunun içindesiniz.</li>
+    </ol>
+
+    <h2>3. Gerekli Programların Kurulumu</h2>
+    <p>Aşağıdaki komutları sırasıyla SSH penceresine yapıştırıp Enter'a basın:</p>
+
+    <pre><code># Sistemi güncelle
+sudo apt update
+
+# Node.js kurulumu (Versiyon 20)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Git kurulumu (Dosyaları çekmek için)
+sudo apt install -y git</code></pre>
+
+    <h2>4. Projeyi Sunucuya Yükleme</h2>
+    <p>Projeyi sunucuya atmanın en kolay yolu GitHub kullanmaktır.<br>
+        <em>(Eğer projeniz GitHub'da yoksa, önce bilgisayarınızdan GitHub'a yüklemeniz gerekir.)</em>
+    </p>
+
+    <pre><code># Projeyi çekin (Kendi repo adresinizi yazın)
+git clone https://github.com/KULLANICI_ADINIZ/REPO_ADINIZ.git
+
+# Klasöre girin
+cd REPO_ADINIZ
+
+# Paketleri yükleyin
+npm install</code></pre>
+
+    <h2>5. Uygulamayı Başlatma</h2>
+    <p>Test etmek için:</p>
+    <pre><code>npm start</code></pre>
+    <p>Eğer hata almazsanız <code>Ctrl + C</code> ile durdurun ve kalıcı olarak başlatmak için şu adımı yapın:</p>
+
+    <div class="note">
+        <strong>Kalıcı Olarak Çalıştırma (PM2 ile):</strong><br>
+        SSH penceresini kapatsanız bile sitenin açık kalması için:
+    </div>
+
+    <pre><code># PM2 yükle
+sudo npm install -g pm2
+
+# Uygulamayı başlat
+pm2 start server.js --name "etukutuphane"
+
+# Bilgisayar yeniden başlasa bile otomatik açılması için
+pm2 startup
+pm2 save</code></pre>
+
+    <h2>6. Dış Dünyaya Açma (Port Ayarı)</h2>
+    <p>Uygulamanız şu an 5000 portunda çalışıyor ama Google Cloud varsayılan olarak sadece 80 (HTTP) portuna izin verir.
+    </p>
+
+    <p><strong>Yöntem A: Port Yönlendirme (En Kolayı)</strong></p>
+    <pre><code>sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 5000</code></pre>
+    <p>Bu komut, siteye girenleri otomatik olarak sizin uygulamanıza (5000 portuna) yönlendirir.</p>
+
+    <hr>
+
+    <p><strong>Tebrikler!</strong> 🎉<br>
+        Artık Google Cloud panelinde gördüğünüz <strong>External IP</strong> adresini tarayıcıya yazarak sitenize
+        girebilirsiniz.</p>
+
+</body>
+
+</html>
